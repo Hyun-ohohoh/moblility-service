@@ -1,8 +1,7 @@
 package com.naho.mobility_service.service;
 
-import com.naho.mobility_service.domain.RequestStatus;
-import com.naho.mobility_service.domain.RideRequest;
-import com.naho.mobility_service.domain.VirtualStop;
+import com.naho.mobility_service.domain.*;
+import com.naho.mobility_service.repository.MatchedGroupRepository;
 import com.naho.mobility_service.repository.RideRequestRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +33,8 @@ public class MatchingService {
 
     //DB에 접근하기 위한 리포지토리를 주입받음
     private final RideRequestRepository rideRequestRepository;
+    private final MatchedGroupRepository matchedGroupRepository;
+
 
     /**
      * 매 시간 정각에 실행되어 매칭 로직을 시작
@@ -100,8 +101,37 @@ public class MatchingService {
         // 2. 클러스터링으로 가상 정류장 생성
         List<VirtualStop> virtualStops = createVirtualStops(group);
 
-        System.out.println(group.get(0).getRegion() + " 행 매칭 성공! 최종 출발 시간: " + finalDepartureTime);
-        System.out.println("생성된 가상 정류장: " + virtualStops);
+//        System.out.println(group.get(0).getRegion() + " 행 매칭 성공! 최종 출발 시간: " + finalDepartureTime);
+//        System.out.println("생성된 가상 정류장: " + virtualStops);
+
+        // 3. 매칭 결과를 데이터베이스에 저장
+        // 3-1. 가상 정류장 객체 리스트를 DB에 저장하기 위해 문자열로 변환합니다.
+        String virtualStopJson = virtualStops.toString();
+
+        // 3-2. 이 그룹에 속한 RideRequest 객체들의 ID만 추출하여 "1,5,12" 형태의 문자열로 만듭니다.
+        String rideRequestIds = group.stream()
+                .map(req -> req.getId().toString()) // 각 요청(req)에서 ID를 가져와 문자열로 바꾸고,
+                .collect(Collectors.joining(",")); // 쉼표(,)로 이어붙인다.
+
+        // 3-3. 위에서 계산한 정보들을 바탕으로 DB에 저장할 MatchedGroup 객체를 생성
+        MatchedGroup newGroup = MatchedGroup.builder()
+                .finalDepartureTime(finalDepartureTime)
+                .virtualStopJson(virtualStopJson)
+                .rideRequestIds(rideRequestIds)
+                .build();
+
+        // 3-4. MatchedGroupRepository를 통해 완성된 그룹 정보를 DB에 저장(INSERT)한다.
+        matchedGroupRepository.save(newGroup);
+
+        // 4. 기존 RideRequest들의 상태를 'MATCHED'로 변경
+        // 이 그룹에 속해있던 모든 RideRequest 객체의 상태를 PENDING -> MATCHED로 변경합니다.
+        // 이 메소드는 @Transactional 안에서 실행되므로, 상태 변경 후 save를 호출하지 않아도
+        // JPA가 "객체가 변경되었네?"라고 감지하여 자동으로 DB에 UPDATE 쿼리를 날려줍니다.
+        group.forEach(req -> req.updateStatus(RequestStatus.MATCHED));
+
+        // 콘솔에 로그 출력
+        System.out.println("매칭 성공! 그룹 ID: " + newGroup.getId() + ", 최종 출발 시간: " + finalDepartureTime);
+
     }
 
     private LocalDateTime calculateFinalDepartureTime(List<RideRequest> group){
