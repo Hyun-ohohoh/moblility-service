@@ -6,6 +6,8 @@ import com.naho.mobility_service.domain.VirtualStop;
 import com.naho.mobility_service.repository.RideRequestRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.math3.ml.clustering.Cluster;
+import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
 import org.apache.commons.math3.ml.clustering.DoublePoint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -91,7 +94,14 @@ public class MatchingService {
     }
 
     private void processConsolidatedMatch(List<RideRequest> group){
+        // 1. 그룹의 최종 출발 시간 계산
+        LocalDateTime finalDepartureTime = calculateFinalDepartureTime(group);
 
+        // 2. 클러스터링으로 가상 정류장 생성
+        List<VirtualStop> virtualStops = createVirtualStops(group);
+
+        System.out.println(group.get(0).getRegion() + " 행 매칭 성공! 최종 출발 시간: " + finalDepartureTime);
+        System.out.println("생성된 가상 정류장: " + virtualStops);
     }
 
     private LocalDateTime calculateFinalDepartureTime(List<RideRequest> group){
@@ -125,7 +135,26 @@ public class MatchingService {
         // 2. DBSCAN 클러스터러 객체 생성
         // epsilon : 0.005는 대략 500m 반경을 의미함 (좌표계에 따라 튜닝 필요)
         // minPts: 최소 2명 이상 모여야 하나의 클러스터(정류장)를 형성합니다.
+        DBSCANClusterer<DoublePoint> clusterer = new DBSCANClusterer<>(0.005, 2);
 
-        return List.of();
+        // 3. 클러스터링을 실행하고 결과를 받음
+        List<Cluster<DoublePoint>> clusterResults = clusterer.cluster(points);
+
+        List<VirtualStop> virtualStops = new ArrayList<>();
+
+        // 4. 결과에서 각 클러스터의 중심점(가상 정류장) 좌표를 추출
+        for (Cluster<DoublePoint> cluster : clusterResults) {
+            double sumLat = 0;
+            double sumLng = 0;
+            for (DoublePoint point : cluster.getPoints()){
+                sumLat += point.getPoint()[0];
+                sumLng += point.getPoint()[1];
+            }
+            double centerLat = sumLat / cluster.getPoints().size();
+            double centerLng = sumLng / cluster.getPoints().size();
+            virtualStops.add(new VirtualStop(centerLat, centerLng));
+        }
+
+        return virtualStops;
     }
 }
