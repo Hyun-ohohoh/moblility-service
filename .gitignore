@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# 민감 정보가 들어 있는 properties 파일 제외
+/src/main/resources/application.properties
