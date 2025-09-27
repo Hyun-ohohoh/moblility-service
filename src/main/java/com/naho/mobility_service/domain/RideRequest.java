@@ -20,7 +20,8 @@ public class RideRequest {
     @Enumerated(EnumType.STRING) //Enum 타입을 문자열 형태로 DB에 저장
     private RequestStatus status; //요청 상태
 
-    private String region; //목적지 대권역
+    @Enumerated(EnumType.STRING)
+    private Region region; //목적지 대권역
 
     private LocalDateTime requestedTime; //사용자가 희망한 출발 시간
 

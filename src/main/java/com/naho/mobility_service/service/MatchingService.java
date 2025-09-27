@@ -63,7 +63,7 @@ public class MatchingService {
         }
 
         // 4. 대권역(region)별로 그룸핑
-        Map<String, List<RideRequest>> requestsByRegion = candidate.stream()
+        Map<Region, List<RideRequest>> requestsByRegion = candidate.stream()
                 .collect(Collectors.groupingBy(RideRequest::getRegion));
 
         // 5. 각 그룹별로 매칭 시도
