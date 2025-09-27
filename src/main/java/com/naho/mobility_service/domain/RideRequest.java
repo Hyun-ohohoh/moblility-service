@@ -29,11 +29,18 @@ public class RideRequest {
 
     private double destLng; //목적지 경도
 
-    //상태를 변경하는 메서드
+    // 상태를 변경하는 메서드
     public void updateStatus(RequestStatus status){
         this.status = status;
     }
 
+    // Test용 DataLoader에서 테스트 데이터를 만들 때 사용할 생성자
+    public RideRequest(Region region, LocalDateTime requestedTime, double destLat, double destLng) {
+        this.status = RequestStatus.PENDING;
+        this.region = region;
+        this.requestedTime = requestedTime;
+        this.destLat = destLat;
+        this.destLng = destLng;
 
-
+    }
 }
