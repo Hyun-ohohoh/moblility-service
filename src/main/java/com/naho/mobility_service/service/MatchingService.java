@@ -3,7 +3,8 @@ package com.naho.mobility_service.service;
 import com.naho.mobility_service.domain.*;
 import com.naho.mobility_service.repository.MatchedGroupRepository;
 import com.naho.mobility_service.repository.RideRequestRepository;
-import jakarta.transaction.Transactional;
+import org.apache.commons.math3.ml.distance.EuclideanDistance;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
@@ -21,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.naho.mobility_service.domain.VirtualStop;
-import org.apache.commons.*;
+
 
 @Service //이 클래스가 비즈니스 로직을 담당하는 서비스 계층임을 나타냄
 @RequiredArgsConstructor // final 필드에 대한 생성자를 자동으로 만들어 줌(Lombok)
@@ -101,8 +102,8 @@ public class MatchingService {
         // 2. 클러스터링으로 가상 정류장 생성
         List<VirtualStop> virtualStops = createVirtualStops(group);
 
-//        System.out.println(group.get(0).getRegion() + " 행 매칭 성공! 최종 출발 시간: " + finalDepartureTime);
-//        System.out.println("생성된 가상 정류장: " + virtualStops);
+        System.out.println(group.get(0).getRegion() + " 행 매칭 성공! 최종 출발 시간: " + finalDepartureTime);
+        System.out.println("생성된 가상 정류장: " + virtualStops);
 
         // 3. 매칭 결과를 데이터베이스에 저장
         // 3-1. 가상 정류장 객체 리스트를 DB에 저장하기 위해 문자열로 변환합니다.
@@ -162,18 +163,24 @@ public class MatchingService {
                 .map(req -> new DoublePoint(new double[]{req.getDestLat(), req.getDestLng()}))
                 .toList();
 
+        System.out.println("클러스터링 입력 좌표: " + points.size() + "개");
+
         // 2. DBSCAN 클러스터러 객체 생성
         // epsilon : 0.005는 대략 500m 반경을 의미함 (좌표계에 따라 튜닝 필요)
         // minPts: 최소 2명 이상 모여야 하나의 클러스터(정류장)를 형성합니다.
-        DBSCANClusterer<DoublePoint> clusterer = new DBSCANClusterer<>(0.005, 2);
+        DBSCANClusterer<DoublePoint> clusterer = new DBSCANClusterer<>(0.003, 1);
 
         // 3. 클러스터링을 실행하고 결과를 받음
         List<Cluster<DoublePoint>> clusterResults = clusterer.cluster(points);
 
+        System.out.println(">>> DBSCAN 결과: " + clusterResults.size() + "개의 클러스터를 찾았습니다.");
+
         List<VirtualStop> virtualStops = new ArrayList<>();
+        List<DoublePoint> clusteredPoints = new ArrayList<>();
 
         // 4. 결과에서 각 클러스터의 중심점(가상 정류장) 좌표를 추출
         for (Cluster<DoublePoint> cluster : clusterResults) {
+            clusteredPoints.addAll(cluster.getPoints());
             double sumLat = 0;
             double sumLng = 0;
             for (DoublePoint point : cluster.getPoints()){
@@ -183,6 +190,17 @@ public class MatchingService {
             double centerLat = sumLat / cluster.getPoints().size();
             double centerLng = sumLng / cluster.getPoints().size();
             virtualStops.add(new VirtualStop(centerLat, centerLng));
+        }
+
+        // 5. 전체 포인트에서 클러스터에 포함된 포인트를 제외하여 'Noise' 포인트를 찾음
+        List<DoublePoint> noisePoints = new ArrayList<>(points);
+        noisePoints.removeAll(clusteredPoints);
+
+        System.out.println(">>> Noise 포인트 결과: " + noisePoints.size() + "개의 개별 정류장을 추가합니다.");
+
+        // 6. 'Noise' 포인트 각각을 독립적인 가상 정류장으로 추가합니다.
+        for (DoublePoint noisePoint : noisePoints) {
+            virtualStops.add(new VirtualStop(noisePoint.getPoint()[0], noisePoint.getPoint()[1]));
         }
 
         return virtualStops;
