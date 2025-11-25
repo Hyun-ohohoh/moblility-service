@@ -47,3 +47,13 @@
     - DBSCAN 알고리즘으로 근거리 승객 그룹핑
     - 그룹의 무게중심을 계산하여 `Virtual Stop` 생성
 5. **Persistence:** 매칭 결과(`MatchedGroup`) 저장 및 승객 상태 업데이트(`MATCHED`)
+
+## 🚧 제한 사항 및 참고 (Limitations & Note)
+
+1. **External API Dependencies**
+   - 주소 변환(Geocoding) 기능은 Naver Maps API에 의존합니다.
+   - 현재 리포지토리에는 **API Key가 포함되어 있지 않으므로**, 클론 후 실행 시 별도의 API Key 발급 및 설정이 필요합니다.
+   
+2. **Prototype Scope**
+   - 본 프로젝트는 **백엔드 핵심 로직(매칭 알고리즘, 좌표 변환)** 검증을 위한 프로토타입입니다.
+   - 실제 도로망(Routing) 데이터 대신 직선 거리를 기반으로 매칭됩니다.
